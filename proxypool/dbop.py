@@ -125,10 +125,3 @@ class RedisOperator(object):
         :return: 分数
         """
         return self._conn.zscore(POOL_NAME, proxy)
-
-    def _flush(self):
-        """清空池中全部代理
-        :return: 提示
-        """
-        self._conn.flushall()
-        return '已清空'

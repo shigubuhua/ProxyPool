@@ -56,29 +56,3 @@ class PageParser(object):
         """从代理池中取一个代理用于requests"""
         print(self.__class__.__name__)
         self.proxies_arg = {'http': self._pool.get()}
-
-
-class AsyncParser(object):
-    """
-    一个异步下载器，可以用该类代替`get_page`函数。
-    由于下载速度过快，爬虫很容易被BAN。
-    """
-
-    def __init__(self, urls):
-        self.urls = urls
-        self._htmls = []
-
-    async def download_single_page(self, url):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                self._htmls.append(await resp.text())
-
-    def download(self):
-        loop = asyncio.get_event_loop()
-        tasks = [self.download_single_page(url) for url in self.urls]
-        loop.run_until_complete(asyncio.wait(tasks))
-
-    @property
-    def htmls(self):
-        self.download()
-        return self._htmls
