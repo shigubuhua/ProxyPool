@@ -1,9 +1,9 @@
 from ..config import HEADERS
 from ..dbop import RedisOperator
 from asyncio import TimeoutError
-import time
 import asyncio
 import aiohttp
+import logging
 
 
 class UsabilityTester(object):
@@ -11,7 +11,8 @@ class UsabilityTester(object):
 
     def __init__(self):
         self.test_api = 'https://www.baidu.com'
-        self.pool = RedisOperator()
+        self._pool = RedisOperator()
+        self._logger = logging.getLogger('root')
 
     async def test_single_proxy(self, proxy):
         """异步测试单个代理"""
@@ -19,10 +20,10 @@ class UsabilityTester(object):
             real_proxy = 'http://' + proxy
             try:
                 async with sess.get(self.test_api, proxy=real_proxy, headers=HEADERS,
-                                    timeout=12, allow_redirects=False):
-                    self.pool.increase(proxy)
+                                    timeout=15, allow_redirects=False):
+                    self._pool.increase(proxy)
             except (TimeoutError, Exception):
-                self.pool.decrease(proxy)
+                self._pool.decrease(proxy)
 
     def test(self, proxies):
         """测试传入的代理列表，
@@ -30,10 +31,10 @@ class UsabilityTester(object):
         :param proxies: 代理列表
         :return: None
         """
-        print('代理测试器开始工作...')
+        len_num = len(proxies)
+        self._logger.debug('测试器开始工作，本次测试 %s 个代理' % len_num)
         loop = asyncio.get_event_loop()
-        # 避免并发太高和win系统报错，这里限制每批500个
-        for batch in [proxies[i:i+500] for i in range(0, len(proxies), 500)]:
+        # 分批进行测试，避免并发太高和win系统报错
+        for batch in [proxies[i:i+200] for i in range(0, len_num, 200)]:
             tasks = [self.test_single_proxy(proxy) for proxy in batch]
             loop.run_until_complete(asyncio.wait(tasks, loop=loop))
-            time.sleep(1)

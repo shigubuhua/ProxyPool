@@ -1,9 +1,12 @@
 from . import UsabilityTester
 from . import PoolAdder
 from ..dbop import RedisOperator
-from multiprocessing import Process
-import time
 from ..webapi import app
+from ..config import LOGGING_CONF
+from multiprocessing import Process
+import logging
+import logging.config
+import time
 
 
 class ProxyCountCheckProcess(Process):
@@ -23,6 +26,9 @@ class ProxyCountCheckProcess(Process):
         self._cycle = cycle
 
     def run(self):
+        logging.config.dictConfig(LOGGING_CONF)
+        logger = logging.getLogger('root')
+        logger.info('进程1 - 代理数量监控启动，每%s秒检查一次' % self._cycle)
         adder = PoolAdder()
         pool = RedisOperator()
         while True:
@@ -44,21 +50,24 @@ class ExpireCheckProcess(Process):
         self._lower_threshold = lower_threshold
 
     def run(self):
+        logging.config.dictConfig(LOGGING_CONF)
+        logger = logging.getLogger('root')
+        logger.info('进程2 - 代理定时测试启动，每%s秒测试一次' % self._cycle)
         tester = UsabilityTester()
         pool = RedisOperator()
-        print('定时代理测试进程启动...')
         while True:
+            logger.debug('开始对池中所有代理进行测试')
             test_proxies = pool.get_all()
             test_total = len(test_proxies)
             if test_total < self._lower_threshold:
+                logger.debug('池中代理数量低于阈值，本次不进行测试')
+                time.sleep(self._cycle)
                 continue
             tester.test(test_proxies)
             after_test_total = pool.usable_size
-            print('='*20, '\n 淘汰了 ', test_total - after_test_total,
-                  ' 个代理', sep='')
-            print('=' * 20, '\n 现可用 ', after_test_total,
-                  ' 个代理\n', '=' * 20, sep='')
-            print('%s秒后进行下次测试...' % self._cycle)
+            logger.info('淘汰了 %s 个代理' % (test_total - after_test_total))
+            logger.info('现可用 %s 个代理' % after_test_total)
+            logger.info('本次测试结束，%s秒后再次测试' % self._cycle)
             time.sleep(self._cycle)
 
 

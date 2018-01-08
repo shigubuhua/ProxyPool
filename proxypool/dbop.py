@@ -1,8 +1,8 @@
-from .config import HOST, PORT, POOL_NAME, INIT_SCORE, CHANGE_SCORE
+from .config import HOST, PORT, POOL_NAME, INIT_SCORE, REGULATE_SCORE
 from random import choice, choices
-import time
 import redis
 import re
+import logging
 
 
 class RedisOperator(object):
@@ -18,7 +18,8 @@ class RedisOperator(object):
         self._conn = redis.StrictRedis(
             host=HOST, port=PORT, max_connections=20, decode_responses=True)
         # 可用代理最低分，保证获取到的至少成功连接1次
-        self.usable_score = INIT_SCORE + CHANGE_SCORE
+        self.usable_score = INIT_SCORE + REGULATE_SCORE
+        self._logger = logging.getLogger('root')
 
     def get(self):
         """返回随机一个可用代理
@@ -35,12 +36,12 @@ class RedisOperator(object):
 
     def _weight_choices(self, total=1):
         """根据分数作为相对权重，随机出指定数量的可用代理并返回
+        指定多个结果可能会有重复
         :param total: 返回的数量
         :return: 列表形式
         """
-        while self.usable_size < total:
-            print('当前可用代理不足，将等待5分钟后重试')
-            time.sleep(300)
+        if self.usable_size < total:
+            self._logger.warning('可用代理低于请求返回的数量，请降低请求数量')
         proxies = []
         scores = []
         for proxy, score in self._conn.zrevrangebyscore(
@@ -61,11 +62,12 @@ class RedisOperator(object):
         判断符合IP:Port格式，并且池中不存在相同的
         :param proxy: 代理
         :param score: 分数
-        :return: 1
+        :return: 1 or 0
         """
         if re.match(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}', proxy) \
                 and not self._conn.sadd(proxy, 'register'):
             return self._conn.zadd(POOL_NAME, score, proxy)
+        return 0
 
     def get_best(self):
         """返回分数最高的随机一个代理
@@ -81,8 +83,8 @@ class RedisOperator(object):
         :return: 修改后的分数
         """
         diff = 100 - self.score(proxy)
-        if diff >= CHANGE_SCORE:
-            return self._conn.zincrby(POOL_NAME, proxy, CHANGE_SCORE)
+        if diff >= REGULATE_SCORE:
+            return self._conn.zincrby(POOL_NAME, proxy, REGULATE_SCORE)
         else:
             return self._conn.zincrby(POOL_NAME, proxy, diff)
 
@@ -91,8 +93,8 @@ class RedisOperator(object):
         :param proxy: 代理
         :return: 修改后的分数
         """
-        if self.score(proxy) > CHANGE_SCORE:
-            return self._conn.zincrby(POOL_NAME, proxy, -CHANGE_SCORE)
+        if self.score(proxy) > REGULATE_SCORE:
+            return self._conn.zincrby(POOL_NAME, proxy, -REGULATE_SCORE)
         else:
             return self.delete(proxy)
 
@@ -124,4 +126,7 @@ class RedisOperator(object):
         :param proxy:
         :return: 分数
         """
-        return self._conn.zscore(POOL_NAME, proxy)
+        score = self._conn.zscore(POOL_NAME, proxy)
+        if score:
+            return score
+        return 0

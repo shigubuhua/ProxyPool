@@ -30,12 +30,11 @@ class PageRequest(object):
                 ChunkedEncodingError):
             if retry > 0:
                 return self.get_resp(url, retry=retry - 1)
-            print('爬虫连续请求失败，正在加载代理请求')
+            self._logger.warning('爬虫可能被反爬，正在加载代理重试')
             # 请求失败，从池中获取代理进行重试
             self.load_proxy()
             return self.get_resp(url)
 
     def load_proxy(self):
         """从代理池中取一个代理用于requests"""
-        print(self.__class__.__name__)
         self.proxies_arg = {'http': self._pool.get()}
