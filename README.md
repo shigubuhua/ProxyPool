@@ -1,6 +1,6 @@
 # ProxyPool
 
-IP 代理池，Python 实现，基于 Redis 存储，支持网页 API 获取代理，理论可跨语言使用。  
+IP 代理池，Python 实现，基于 Redis 存储，支持网页 API 获取代理，理论可跨语言使用；  
 代理是通过爬虫获取免费代理，并通过定期测试对代理进行评分，循环维持可用性。
 
 ## 运行环境
@@ -20,11 +20,9 @@ IP 代理池，Python 实现，基于 Redis 存储，支持网页 API 获取代�
 
 `$ pip install -r requirements.txt`
 
-*Windows 用户如果无法安装 lxml 库请[点击这里](http://www.lfd.uci.edu/~gohlke/pythonlibs/)*。
 #### 配置
 
-进入 proxypool 目录，修改 config.py 文件；  
-另外建议先更新一下抓取代理的爬虫。
+进入 proxypool 目录，修改 config.py 配置参数，更新 spider.py 的爬虫类。  
 
 #### 运行
 
@@ -60,10 +58,10 @@ def get_proxy():
 > 参数配置模块
 
 * dbop.py
->数据库操作模块，基于 Redis
+> 数据库操作模块，基于 Redis
 
-* parser.py
-> 请求解析模块，支持重试和加载代理
+* request.py
+> 请求模块，支持重试和加载代理
 
 * spider.py
 > 定义所有代理爬虫类
@@ -83,9 +81,9 @@ def get_proxy():
 ## 流程图
 ![picture](docs/4.png)
 
-
 ## 鸣谢
-本项目基于 [@WiseDoge][1] 开发版本改写，增加了很多周边功能，整体项目逻辑依然维持原作。作为本人学习 Python 以来首个小项目，感谢原作者的项目逻辑和代码给予很多学习之处。
+本项目基于 [@WiseDoge][1] 开发版本改写，增加了很多周边功能，整体项目逻辑依然维持原作；  
+作为本人学习 Python 以来首个小项目，感谢原作者的项目逻辑和代码给予很多学习之处。
 
 
   [1]: https://github.com/WiseDoge/ProxyPool
