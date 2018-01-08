@@ -1,14 +1,13 @@
 """
-爬虫模块，包含爬虫类的元类和基类，
-如果用户需要定义自己的爬虫类，必须要继承
-`SpiderMeta`元类和`BaseSpider`基类，并重写`get`方法，
-`get`方法要求返回 ip:port 字符串组成的列表形式的代理。
+爬虫模块，包含爬虫类的元类、基类、异常类
+如果用户需要定义自己的爬虫类，必须要继承`SpiderMeta`元类和`BaseSpider`基类，
+并重写`get`方法，方法需要返回`ip:port`字符串组成的列表形式的代理。
 """
 
-from .error import RewriteSpiderError
-from .parser import PageParser
+from .request import PageRequest
 import time
 import re
+import logging
 
 
 class SpiderMeta(type):
@@ -36,8 +35,9 @@ class BaseSpider(object):
         """
         # 页数计数器
         self._counter = 1
-        # 解析器有parse方法进行请求，返回soup结果
-        self.parser = PageParser()
+        # 解析器有get_resp方法进行请求，返回soup结果
+        self._request = PageRequest()
+        self._logger = logging.getLogger('root')
 
     def increment(self, count):
         """子类用于增加计数器的方法
@@ -60,25 +60,39 @@ class BaseSpider(object):
         raise RewriteSpiderError(__class__.__name__)
 
 
+class RewriteSpiderError(Exception):
+    """重写爬虫异常，当用户自己编写的爬虫类没有按照规定时，
+    将触发此异常.
+    """
+
+    def __init__(self, cls_name):
+        self.cls_name = cls_name
+        Exception.__init__(self)
+
+    def __str__(self):
+        return repr(f'爬虫`{self.cls_name}`没有重写`gets`方法.')
+
+
 class KuaidailiSpider(BaseSpider, metaclass=SpiderMeta):
     start_url = 'http://www.kuaidaili.com/free/inha/{}/'
 
-    def get(self, step=2):
+    def get(self, step=10):
         urls = (self.start_url.format(i)
                 for i in range(self._counter, self._counter + step))
         proxies = []
         # 以下爬虫代码可自行修改
         for url in urls:
-            soup = self.parser.parse(url)
-            # 防止被 Ban, 加 3s 间隔。
-            time.sleep(3)
-            proxy_list = soup.find('table', class_='table-bordered')
-            for each in proxy_list.find_all('tr')[1:]:
-                tmp = each.find_all('td')
-                ip = tmp[0].get_text()
-                port = tmp[1].get_text()
+            resp = self._request.get_resp(url)
+            ip_list = re.findall(
+                r'<td.*?>(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})</td>', resp.text)
+            port_list = re.findall(r'<td.*?>(\d{4,5})</td>', resp.text)
+            for ip, port in zip(ip_list, port_list):
                 proxies.append(':'.join([ip, port]))
+            # 防止被BAN，加3秒延迟
+            time.sleep(3)
         self._counter += step
+        self._logger.debug('%s 爬取了 %s 个代理' %
+                           (self.__class__.__name__, len(proxies)))
         return proxies
 
 
@@ -90,39 +104,44 @@ class XiciSpider(BaseSpider, metaclass=SpiderMeta):
                 for i in range(self._counter, self._counter + step))
         proxies = []
         for url in urls:
-            soup = self.parser.parse(url)
-            time.sleep(5)
+            resp = self._request.get_resp(url)
             # 这个网站反爬不会返回404，会返回干扰页面
-            while 'block' in soup.text:
-                self.parser.get_proxy()
-                soup = self.parser.parse(url)
-            proxy_list = soup.find('table', id='ip_list').find_all('tr')[1:]
-            for each in proxy_list:
-                tmp = each.find_all('td')
-                ip = tmp[1].get_text()
-                port = tmp[2].get_text()
+            while 'block' in resp.text:
+                self._logger.debug('%s 被反爬，开始使用代理' %
+                                   self.__class__.__name__)
+                self._request.load_proxy()
+                time.sleep(5)
+                resp = self._request.get_resp(url)
+            ip_list = re.findall(
+                r'<td>(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})</td>', resp.text)
+            port_list = re.findall(r'<td>(\d{4,5})</td>', resp.text)
+            for ip, port in zip(ip_list, port_list):
                 proxies.append(':'.join([ip, port]))
+            time.sleep(10)
         self._counter += step
+        self._logger.debug('%s 爬取了 %s 个代理' %
+                           (self.__class__.__name__, len(proxies)))
         return proxies
 
 
 class Ip3366Spider(BaseSpider, metaclass=SpiderMeta):
     start_url = 'http://www.ip3366.net/free/?stype=1&page={}'
 
-    def get(self, step=2):
+    def get(self, step=10):
         urls = (self.start_url.format(i)
                 for i in range(self._counter, self._counter + step))
         proxies = []
         for url in urls:
-            soup = self.parser.parse(url)
-            time.sleep(3)
-            proxy_list = soup.find('table', class_='table-bordered')
-            for each in proxy_list.find_all('tr')[1:]:
-                tmp = each.find_all('td')
-                ip = tmp[0].get_text()
-                port = tmp[1].get_text()
+            resp = self._request.get_resp(url)
+            ip_list = re.findall(
+                r'<td>(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})</td>', resp.text)
+            port_list = re.findall(r'<td>(\d{4,5})</td>', resp.text)
+            for ip, port in zip(ip_list, port_list):
                 proxies.append(':'.join([ip, port]))
+            time.sleep(3)
         self._counter += step
+        self._logger.debug('%s 爬取了 %s 个代理' %
+                           (self.__class__.__name__, len(proxies)))
         return proxies
 
 
@@ -130,10 +149,12 @@ class Ip66Spider(BaseSpider, metaclass=SpiderMeta):
     start_url = 'http://m.66ip.cn/mo.php?tqsl=300'
 
     def get(self, step=1):
-        soup = self.parser.parse(self.start_url)
+        resp = self._request.get_resp(self.start_url)
         time.sleep(5)
-        ip_port = re.findall(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}',
-                             soup.get_text(), flags=re.M)
-        return ip_port
+        proxies = re.findall(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}',
+                             resp.text)
+        self._logger.debug('%s 爬取了 %s 个代理' %
+                           (self.__class__.__name__, len(proxies)))
+        return proxies
 
 # 请在此处继续扩展你的爬虫类。
