@@ -32,7 +32,7 @@ class UsabilityTester(object):
         :return: None
         """
         len_num = len(proxies)
-        self._logger.debug('测试器开始工作，本次测试 %s 个代理' % len_num)
+        self._logger.info('测试器开始工作，本次测试 %s 个代理' % len_num)
         loop = asyncio.get_event_loop()
         # 分批进行测试，避免并发太高和win系统报错
         for batch in [proxies[i:i+200] for i in range(0, len_num, 200)]:

@@ -39,7 +39,7 @@ class PoolAdder(object):
             for proxy in new_proxies:
                 if self._pool.add(proxy):
                     added_proxies.append(proxy)
-            self._logger.debug('爬取增加了 %s 个代理，开始测试' % len(added_proxies))
+            self._logger.info('爬取增加了 %s 个代理，开始测试' % len(added_proxies))
             self._tester.test(added_proxies)
             if self.is_over():
                 self._logger.debug('代理已经充足，结束补充')

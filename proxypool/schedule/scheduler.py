@@ -37,8 +37,8 @@ class ProxyCountCheckProcess(Process):
             time.sleep(self._cycle)
 
 
-class ExpireCheckProcess(Process):
-    """过期性检验进程，每隔一段时间从 Pool 中提取出最多200个代理进行测试
+class CyclicTestProcess(Process):
+    """周期性测试进程，每隔一段时间从 Pool 中提取出最多200个代理进行测试
     """
     def __init__(self, lower_threshold, cycle):
         """
@@ -56,7 +56,7 @@ class ExpireCheckProcess(Process):
         tester = UsabilityTester()
         pool = RedisOperator()
         while True:
-            logger.debug('开始对池中所有代理进行测试')
+            logger.debug('周期性测试开始，将对所有代理进行测试')
             test_proxies = pool.get_all()
             test_total = len(test_proxies)
             if test_total < self._lower_threshold:
@@ -65,8 +65,8 @@ class ExpireCheckProcess(Process):
                 continue
             tester.test(test_proxies)
             after_test_total = pool.usable_size
-            logger.info('淘汰了 %s 个代理' % (test_total - after_test_total))
-            logger.info('现可用 %s 个代理' % after_test_total)
+            logger.info('淘汰了 %s 个代理，现可用 %s 个代理'
+                        % (test_total - after_test_total, after_test_total))
             logger.info('本次测试结束，%s秒后再次测试' % self._cycle)
             time.sleep(self._cycle)
 
